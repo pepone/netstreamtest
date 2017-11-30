@@ -20,11 +20,24 @@ namespace Examples.System.Net
                                                      X509Chain chain,
                                                      SslPolicyErrors sslPolicyErrors)
         {
+            //
+            // We expect the received chain lenght to be 2, it should contain the Intermediate
+            // CA but not the Root CA
+            //
             Console.WriteLine("Chain length: {0}", chain.ChainElements.Count);
             var newChain = new X509Chain(false);
             newChain.ChainPolicy.RevocationMode = X509RevocationMode.NoCheck;
             newChain.ChainPolicy.VerificationFlags = X509VerificationFlags.AllowUnknownCertificateAuthority;
-            // Use our Self signed CA certificate to build the newChain
+            //
+            // Add the required itermediate certificates to the extra store
+            // so that they can be used when building the chain
+            //
+            foreach(var e in chain.ChainElements)
+            {
+                // In a real case we would need to check that we are not adding the XSRoot CA
+                newChain.ChainPolicy.ExtraStore.Add(e.Certificate);
+            }
+            // Add our Self signed CA certificate to build the newChain
             newChain.ChainPolicy.ExtraStore.Add(new X509Certificate2("cacert1.der"));
             newChain.Build(new X509Certificate2(certificate));
 
@@ -38,9 +51,9 @@ namespace Examples.System.Net
             return false;
         }
 
-        public static void RunClient()
+        public static void RunClient(string host)
         {
-            TcpClient client = new TcpClient("127.0.0.1", 10010);
+            TcpClient client = new TcpClient(host, 10010);
             Console.WriteLine("Client connected.");
             SslStream sslStream = new SslStream(client.GetStream(),
                                                 false,
@@ -48,7 +61,7 @@ namespace Examples.System.Net
                                                 null);
             try
             {
-                sslStream.AuthenticateAsClient("127.0.0.1");
+                sslStream.AuthenticateAsClient(host);
             }
             catch(AuthenticationException e)
             {
@@ -61,7 +74,8 @@ namespace Examples.System.Net
 
         public static int Main(string[] args)
         {
-            SslTcpClient.RunClient();
+            string host = args.Length > 0 ? args[0] : "127.0.0.1";
+            SslTcpClient.RunClient(host);
             return 0;
         }
     }
